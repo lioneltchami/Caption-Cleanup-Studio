@@ -1,6 +1,6 @@
-# Caption Studio
+# Caption Craft Studio
 
-AI-powered caption error correction specialized for streaming vocabulary (game terms, emotes, usernames)
+Craft perfect captions with AI. Specialized caption correction for streaming vocabulary (game terms, emotes, usernames)
 
 ## Features
 

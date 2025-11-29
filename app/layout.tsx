@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Caption Studio - AI-Powered Caption Correction",
-  description: "Automatically correct caption errors with AI, specialized for streaming vocabulary (game terms, emotes, usernames)",
+  title: "Caption Craft Studio - AI-Powered Caption Correction",
+  description: "Craft perfect captions with AI. Automatically correct caption errors, specialized for streaming vocabulary (game terms, emotes, usernames)",
 };
 
 export default function RootLayout({

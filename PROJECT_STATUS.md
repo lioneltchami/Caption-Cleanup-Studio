@@ -1,4 +1,4 @@
-# Caption Studio - Project Status Report
+# Caption Craft Studio - Project Status Report
 
 ## Phase 1: Rapid Prototype ✅ COMPLETED
 

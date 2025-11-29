@@ -1,6 +1,6 @@
-# Caption Studio - Complete Setup Instructions
+# Caption Craft Studio - Complete Setup Instructions
 
-This document provides step-by-step instructions for setting up and running Caption Studio.
+This document provides step-by-step instructions for setting up and running Caption Craft Studio.
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ This will install all required packages:
 1. Go to https://platform.openai.com/api-keys
 2. Sign up or log in to your OpenAI account
 3. Click "Create new secret key"
-4. Give it a name (e.g., "Caption Studio")
+4. Give it a name (e.g., "Caption Craft Studio")
 5. Copy the key (it starts with `sk-`)
 6. **Important**: Save this key somewhere safe - you won't be able to see it again!
 
@@ -89,7 +89,7 @@ You should see output like:
 
 1. Open your browser and go to http://localhost:3000
 
-2. You should see the Caption Studio interface with:
+2. You should see the Caption Craft Studio interface with:
    - "Upload Captions" section at the top
    - Two side-by-side text areas (Original Captions / Corrected Captions)
    - "Correct Captions" and "Download" buttons
@@ -279,4 +279,4 @@ Once you have the basic flow working:
 - [ ] See corrected output on right side
 - [ ] Can download corrected file
 
-If all items are checked, you're ready to use Caption Studio! 🎉
+If all items are checked, you're ready to use Caption Craft Studio! 🎉
