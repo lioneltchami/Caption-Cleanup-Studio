@@ -224,21 +224,39 @@ export function validateCaption(caption: Caption, index: number): CaptionValidat
     warnings.push(`Caption ${index + 1}: Empty text`);
   }
 
-  // Check character count per line (SRT best practice: max 42 characters per line)
+  // Check duration (industry standard: min 1s, max 6s)
+  const duration = (caption.end - caption.start) / 1000; // seconds
+  if (duration < 1) {
+    warnings.push(`Caption ${index + 1}: Duration too short (${duration.toFixed(2)}s, min recommended: 1s)`);
+  }
+  if (duration > 6) {
+    warnings.push(`Caption ${index + 1}: Duration too long (${duration.toFixed(1)}s, max recommended: 6s)`);
+  }
+
+  // Check line count (industry standard: max 2 lines on screen)
   const lines = caption.text.split('\n');
+  if (lines.length > 2) {
+    errors.push(`Caption ${index + 1}: Too many lines (${lines.length} lines, max: 2)`);
+  }
+
+  // Check character count per line (industry standard: max 42 characters per line)
   lines.forEach((line, lineIdx) => {
     if (line.length > 42) {
       warnings.push(`Caption ${index + 1}, Line ${lineIdx + 1}: Exceeds 42 characters (${line.length} chars)`);
     }
   });
 
-  // Check CPS (characters per second - ideal: 15-20, max: 25)
-  const duration = (caption.end - caption.start) / 1000; // seconds
+  // Check CPS (characters per second)
+  // Industry standards: 12-17 optimal, 17-21 acceptable, 21+ too fast
   const chars = caption.text.length;
   const cps = duration > 0 ? chars / duration : Infinity;
 
-  if (cps > 25) {
-    warnings.push(`Caption ${index + 1}: Reading speed too fast (${cps.toFixed(1)} chars/sec, max recommended: 25)`);
+  if (cps > 21) {
+    errors.push(`Caption ${index + 1}: Reading speed too fast (${cps.toFixed(1)} CPS, max: 21)`);
+  } else if (cps > 17) {
+    warnings.push(`Caption ${index + 1}: Reading speed fast (${cps.toFixed(1)} CPS, optimal: 12-17)`);
+  } else if (cps < 12 && duration > 1) {
+    warnings.push(`Caption ${index + 1}: Reading speed slow (${cps.toFixed(1)} CPS, optimal: 12-17)`);
   }
 
   return {
@@ -265,13 +283,23 @@ export function validateAllCaptions(captions: Caption[]): CaptionValidation {
     allErrors.push(...result.errors);
   });
 
-  // Check for timing overlaps
+  // Check for timing overlaps and minimum gaps
+  // Industry standard: minimum 0.1s (100ms) gap between captions
+  const MIN_GAP_MS = 100; // 0.1 seconds
+
   for (let i = 0; i < captions.length - 1; i++) {
     const current = captions[i];
     const next = captions[i + 1];
 
+    // Check for overlap (serious error)
     if (current.end > next.start) {
-      allWarnings.push(`Captions ${i + 1} and ${i + 2}: Timing overlap detected`);
+      const overlapMs = current.end - next.start;
+      allErrors.push(`Captions ${i + 1} and ${i + 2}: Timing overlap (${overlapMs}ms)`);
+    }
+    // Check for minimum gap (warning)
+    else if (next.start - current.end < MIN_GAP_MS) {
+      const gapMs = next.start - current.end;
+      allWarnings.push(`Captions ${i + 1} and ${i + 2}: Gap too small (${gapMs}ms, min recommended: ${MIN_GAP_MS}ms)`);
     }
   }
 
