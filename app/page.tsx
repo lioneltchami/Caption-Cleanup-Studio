@@ -4,25 +4,101 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { useFFmpeg } from './hooks/useFFmpeg';
 
 export default function Home() {
   const [originalCaptions, setOriginalCaptions] = useState('');
   const [correctedCaptions, setCorrectedCaptions] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isExtractingCaptions, setIsExtractingCaptions] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
   const [error, setError] = useState('');
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { extractCaptionsFromVideo, extractAudioFromVideo, ffmpegLoadError } = useFFmpeg();
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setOriginalCaptions(text);
-      setCorrectedCaptions('');
-      setError('');
-    };
-    reader.readAsText(file);
+    setError('');
+    setCorrectedCaptions('');
+
+    // Check if it's a video file
+    const isVideoFile = file.type.startsWith('video/') ||
+                        file.name.match(/\.(mp4|mov|webm|avi|mkv)$/i);
+
+    if (isVideoFile) {
+      // Handle video file - try to extract embedded captions first
+      setIsExtractingCaptions(true);
+      setProcessingStatus('Checking for embedded captions...');
+
+      const extractedCaptions = await extractCaptionsFromVideo(file);
+
+      if (extractedCaptions) {
+        // Found embedded captions!
+        setOriginalCaptions(extractedCaptions);
+        setError('');
+        setProcessingStatus('');
+        setIsExtractingCaptions(false);
+      } else {
+        // No embedded captions - try Whisper auto-transcription
+        try {
+          // Extract audio from video
+          setProcessingStatus('Extracting audio from video...');
+          const audioFile = await extractAudioFromVideo(file);
+
+          if (!audioFile) {
+            setError('Failed to extract audio from video. Please try uploading a caption file (.srt/.vtt) instead.');
+            setProcessingStatus('');
+            setIsExtractingCaptions(false);
+            e.target.value = '';
+            return;
+          }
+
+          // Send audio to Whisper API
+          setProcessingStatus('Generating captions with Whisper AI... This may take a moment.');
+          const formData = new FormData();
+          formData.append('audio', audioFile);
+
+          const response = await fetch('/api/transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            setError(errorData.error || 'Failed to transcribe audio. Please check your OpenAI API key.');
+            setProcessingStatus('');
+            setIsExtractingCaptions(false);
+            e.target.value = '';
+            return;
+          }
+
+          // Get the transcribed SRT captions
+          const transcribedCaptions = await response.text();
+          setOriginalCaptions(transcribedCaptions);
+          setError('');
+          setProcessingStatus('');
+          setIsExtractingCaptions(false);
+        } catch (err) {
+          setError('Failed to transcribe audio. Please try uploading a caption file (.srt/.vtt) instead.');
+          console.error('Transcription error:', err);
+          setProcessingStatus('');
+          setIsExtractingCaptions(false);
+        }
+      }
+    } else {
+      // Handle caption file (SRT/VTT) - read as text
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        setOriginalCaptions(text);
+      };
+      reader.readAsText(file);
+    }
+
+    // Reset file input so user can upload the same file again or a different file
+    e.target.value = '';
   };
 
   const correctCaptions = async () => {
@@ -58,21 +134,8 @@ export default function Home() {
           if (done) break;
 
           const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('0:')) {
-              try {
-                const json = JSON.parse(line.substring(2));
-                if (json.type === 'text-delta' && json.textDelta) {
-                  correctedText += json.textDelta;
-                  setCorrectedCaptions(correctedText);
-                }
-              } catch (e) {
-                // Ignore parse errors for incomplete chunks
-              }
-            }
-          }
+          correctedText += chunk;
+          setCorrectedCaptions(correctedText);
         }
       }
     } catch (err) {
@@ -116,9 +179,9 @@ export default function Home() {
           {/* Upload Section */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Upload Captions</CardTitle>
+              <CardTitle>Upload Video or Captions</CardTitle>
               <CardDescription>
-                Upload an SRT or VTT file, or paste your captions below
+                Upload a video file (MP4, MOV, WEBM) with embedded captions, or an SRT/VTT file
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -127,20 +190,26 @@ export default function Home() {
                   <Button
                     onClick={() => document.getElementById('file-upload')?.click()}
                     variant="outline"
+                    disabled={isExtractingCaptions}
                   >
-                    Choose File
+                    {isExtractingCaptions ? 'Extracting Captions...' : 'Choose File'}
                   </Button>
                   <input
                     id="file-upload"
                     type="file"
-                    accept=".srt,.vtt"
+                    accept=".srt,.vtt,.mp4,.mov,.webm,.avi,.mkv,video/*"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
                   <span className="text-sm text-zinc-500">
-                    Supports .srt and .vtt files
+                    Supports video files (MP4, MOV, WEBM) and caption files (.srt, .vtt)
                   </span>
                 </div>
+                {isExtractingCaptions && (
+                  <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
+                    {processingStatus || 'Processing video...'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -218,10 +287,10 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
               <p>
-                <strong>1. Upload:</strong> Upload your SRT/VTT caption file or paste captions directly
+                <strong>1. Upload:</strong> Upload a video file with embedded captions, or directly upload an SRT/VTT caption file
               </p>
               <p>
-                <strong>2. AI Correction:</strong> GPT-4o-mini analyzes and corrects common streaming errors
+                <strong>2. AI Correction:</strong> Claude 3.5 Haiku analyzes and corrects common streaming errors
               </p>
               <p>
                 <strong>3. Download:</strong> Get your corrected captions ready to use
@@ -229,8 +298,8 @@ export default function Home() {
               <div className="mt-4 rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800">
                 <p className="font-semibold">Supported Terms:</p>
                 <p className="mt-1">
-                  Emotes (Pog, Kappa, LUL), Gaming (GG, inting, ganking),
-                  Slang (POV, FR, NGL), and more!
+                  Emotes (Pog, Kappa, LUL, KEKW, Sadge), Gaming (GG, inting, ganking, Meta),
+                  Slang (POV, FR, NGL, TBH, IRL), and more!
                 </p>
               </div>
             </CardContent>

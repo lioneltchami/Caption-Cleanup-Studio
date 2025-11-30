@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { streamText } from 'ai';
 
 // Allow streaming responses up to 30 seconds
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     }
 
     const result = streamText({
-      model: openai('gpt-4o-mini'),
+      model: anthropic('claude-3-5-haiku-20241022'),
       messages: [
         {
           role: 'system',
@@ -36,23 +36,23 @@ COMMON CORRECTIONS:
 - Correct obvious speech-to-text errors
 - Preserve timestamps and caption structure
 
-RULES:
-1. Only fix errors - don't change correct words
-2. Preserve the exact format (SRT/VTT structure)
-3. Keep timing codes unchanged
-4. Fix capitalization appropriately
-5. Add proper punctuation where missing
-6. Don't add or remove content - only correct errors`,
+CRITICAL RULES:
+1. Output ONLY the corrected captions - no explanations, no summaries, no headers
+2. Preserve the EXACT format (SRT/VTT structure with numbers, timestamps, and text)
+3. Keep timing codes UNCHANGED
+4. Fix capitalization and punctuation appropriately
+5. Don't add or remove content - only correct errors
+6. Return the corrected captions EXACTLY as they should appear in the file`,
         },
         {
           role: 'user',
-          content: `Please correct the following captions:\n\n${captions}`,
+          content: `Correct these captions and output ONLY the corrected captions with no additional text:\n\n${captions}`,
         },
       ],
       temperature: 0.3, // Lower temperature for more consistent corrections
     });
 
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error('Error in caption correction:', error);
     return new Response('Error processing captions', { status: 500 });
