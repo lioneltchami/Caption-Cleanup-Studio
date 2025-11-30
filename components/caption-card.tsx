@@ -25,8 +25,10 @@ export interface CaptionCardProps {
   onUpdate: (id: string, updates: Partial<Omit<Caption, 'id'>>) => void;
   /** Callback when caption is deleted */
   onDelete: (id: string) => void;
-  /** Whether the caption is currently selected/active */
+  /** Whether the caption is currently selected/active (clicked by user) */
   isActive?: boolean;
+  /** Whether the caption is currently playing in video */
+  isVideoActive?: boolean;
   /** Callback when caption card is clicked */
   onClick?: () => void;
 }
@@ -37,6 +39,7 @@ export function CaptionCard({
   onUpdate,
   onDelete,
   isActive = false,
+  isVideoActive = false,
   onClick,
 }: CaptionCardProps) {
   // Local state for time editing
@@ -101,7 +104,9 @@ export function CaptionCard({
   return (
     <Card
       className={`transition-all cursor-pointer ${
-        isActive
+        isVideoActive
+          ? 'ring-2 ring-green-500 shadow-lg bg-green-50/50 dark:bg-green-900/10'
+          : isActive
           ? 'ring-2 ring-blue-500 shadow-lg'
           : 'hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-700'
       } ${hasErrors ? 'border-red-500' : hasWarnings ? 'border-yellow-500' : ''}`}

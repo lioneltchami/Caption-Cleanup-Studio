@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useFFmpeg } from './hooks/useFFmpeg';
 import { CaptionEditor } from '@/components/caption-editor';
+import { VideoPlayer, type VideoPlayerRef } from '@/components/video-player';
 import {
   parseCaptions,
   serializeCaptions,
@@ -26,6 +27,12 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'text' | 'visual'>('text');
   const [captionFormat, setCaptionFormat] = useState<'SRT' | 'VTT'>('SRT');
   const [isUpdatingFromVisual, setIsUpdatingFromVisual] = useState(false);
+
+  // Video player state
+  const [uploadedVideoFile, setUploadedVideoFile] = useState<File | null>(null);
+  const [videoBlobUrl, setVideoBlobUrl] = useState<string>('');
+  const [currentVideoTime, setCurrentVideoTime] = useState(0); // in milliseconds
+  const videoPlayerRef = useRef<VideoPlayerRef>(null);
 
   const { extractCaptionsFromVideo, extractAudioFromVideo, ffmpegLoadError } = useFFmpeg();
 
@@ -68,6 +75,27 @@ export default function Home() {
     }
   };
 
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (videoBlobUrl) {
+        URL.revokeObjectURL(videoBlobUrl);
+      }
+    };
+  }, [videoBlobUrl]);
+
+  // Handle video time updates
+  const handleVideoTimeUpdate = (timeMs: number) => {
+    setCurrentVideoTime(timeMs);
+  };
+
+  // Handle caption click to seek video
+  const handleCaptionClick = (caption: Caption) => {
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.seekTo(caption.start);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -80,6 +108,15 @@ export default function Home() {
                         file.name.match(/\.(mp4|mov|webm|avi|mkv)$/i);
 
     if (isVideoFile) {
+      // Save video file and create blob URL for video player
+      // Clean up old blob URL if exists
+      if (videoBlobUrl) {
+        URL.revokeObjectURL(videoBlobUrl);
+      }
+      const blobUrl = URL.createObjectURL(file);
+      setVideoBlobUrl(blobUrl);
+      setUploadedVideoFile(file);
+
       // Handle video file - try to extract embedded captions first
       setIsExtractingCaptions(true);
       setProcessingStatus('Step 1/3: Checking video for embedded captions...');
@@ -295,6 +332,18 @@ export default function Home() {
             </CardContent>
           </Card>
 
+          {/* Video Player with Caption Sync */}
+          {videoBlobUrl && captionObjects.length > 0 && (
+            <div className="mb-6">
+              <VideoPlayer
+                ref={videoPlayerRef}
+                videoSrc={videoBlobUrl}
+                captions={captionObjects}
+                onTimeUpdate={handleVideoTimeUpdate}
+              />
+            </div>
+          )}
+
           {/* Side-by-Side Preview */}
           <div className="grid gap-6 md:grid-cols-2">
             {/* Original Captions */}
@@ -344,6 +393,8 @@ export default function Home() {
                     <CaptionEditor
                       captions={captionObjects}
                       onCaptionsChange={handleCaptionObjectsChange}
+                      currentVideoTime={currentVideoTime}
+                      onCaptionClick={handleCaptionClick}
                     />
                   </div>
                 )}

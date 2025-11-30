@@ -27,10 +27,19 @@ export interface CaptionEditorProps {
   captions: Caption[];
   /** Callback when captions are updated */
   onCaptionsChange: (captions: Caption[]) => void;
+  /** Current video playback time in milliseconds (for highlighting) */
+  currentVideoTime?: number;
+  /** Callback when user clicks a caption (for seeking video) */
+  onCaptionClick?: (caption: Caption) => void;
 }
 
-export function CaptionEditor({ captions, onCaptionsChange }: CaptionEditorProps) {
+export function CaptionEditor({ captions, onCaptionsChange, currentVideoTime, onCaptionClick }: CaptionEditorProps) {
   const [activeCaptionId, setActiveCaptionId] = useState<string | null>(null);
+
+  // Find caption that's active based on video time
+  const videoCaptionId = currentVideoTime !== undefined
+    ? captions.find(cap => currentVideoTime >= cap.start && currentVideoTime < cap.end)?.id || null
+    : null;
 
   // Handle caption update
   const handleUpdate = (id: string, updates: Partial<Omit<Caption, 'id'>>) => {
@@ -184,7 +193,14 @@ export function CaptionEditor({ captions, onCaptionsChange }: CaptionEditorProps
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               isActive={caption.id === activeCaptionId}
-              onClick={() => setActiveCaptionId(caption.id)}
+              isVideoActive={caption.id === videoCaptionId}
+              onClick={() => {
+                setActiveCaptionId(caption.id);
+                // Also seek video to this caption if callback provided
+                if (onCaptionClick) {
+                  onCaptionClick(caption);
+                }
+              }}
             />
           ))}
         </div>
