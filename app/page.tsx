@@ -82,7 +82,7 @@ export default function Home() {
     if (isVideoFile) {
       // Handle video file - try to extract embedded captions first
       setIsExtractingCaptions(true);
-      setProcessingStatus('Checking for embedded captions...');
+      setProcessingStatus('Step 1/3: Checking video for embedded captions...');
 
       const extractedCaptions = await extractCaptionsFromVideo(file);
 
@@ -96,7 +96,7 @@ export default function Home() {
         // No embedded captions - try Whisper auto-transcription
         try {
           // Extract audio from video
-          setProcessingStatus('Extracting audio from video...');
+          setProcessingStatus('Step 2/3: Extracting audio from video...');
           const audioFile = await extractAudioFromVideo(file);
 
           if (!audioFile) {
@@ -108,7 +108,7 @@ export default function Home() {
           }
 
           // Send audio to Whisper API
-          setProcessingStatus('Generating captions with Whisper AI... This may take a moment.');
+          setProcessingStatus('Step 3/3: Generating captions with AI transcription... This may take a minute.');
           const formData = new FormData();
           formData.append('audio', audioFile);
 
@@ -119,7 +119,20 @@ export default function Home() {
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            setError(errorData.error || 'Failed to transcribe audio. Please check your OpenAI API key.');
+            let errorMessage = 'Failed to transcribe audio. ';
+
+            // Provide specific guidance based on status code
+            if (response.status === 401 || response.status === 403) {
+              errorMessage += 'Invalid or missing API key. Please add OPENAI_API_KEY or ASSEMBLYAI_API_KEY to your .env.local file.';
+            } else if (response.status === 429) {
+              errorMessage += 'API rate limit exceeded. Please try again in a few moments.';
+            } else if (response.status === 500) {
+              errorMessage += 'Server error. Please try again or check your API key configuration.';
+            } else {
+              errorMessage += errorData.error || 'Please check your API key configuration and try again.';
+            }
+
+            setError(errorMessage);
             setProcessingStatus('');
             setIsExtractingCaptions(false);
             e.target.value = '';
@@ -173,7 +186,21 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to correct captions');
+        // Provide specific error messages based on status code
+        let errorMessage = 'Failed to correct captions. ';
+
+        if (response.status === 401 || response.status === 403) {
+          errorMessage += 'Invalid or missing API key. Please add ANTHROPIC_API_KEY to your .env.local file.';
+        } else if (response.status === 429) {
+          errorMessage += 'API rate limit exceeded. Please try again in a few moments.';
+        } else if (response.status === 500) {
+          errorMessage += 'Server error. Please try again later.';
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          errorMessage += errorData.error || 'Please check your API key configuration and try again.';
+        }
+
+        throw new Error(errorMessage);
       }
 
       const reader = response.body?.getReader();
@@ -191,7 +218,9 @@ export default function Home() {
         }
       }
     } catch (err) {
-      setError('Error correcting captions. Please check your API key and try again.');
+      // Use the error message from the thrown error if available
+      const errorMessage = err instanceof Error ? err.message : 'Error correcting captions. Please check your API key and try again.';
+      setError(errorMessage);
       console.error('Error:', err);
     } finally {
       setIsProcessing(false);
@@ -204,8 +233,8 @@ export default function Home() {
     const a = document.createElement('a');
     a.href = url;
 
-    // Determine file extension from original content
-    const extension = originalCaptions.includes('WEBVTT') ? 'vtt' : 'srt';
+    // Use detected format from state (more reliable than re-detecting)
+    const extension = captionFormat.toLowerCase();
     a.download = `corrected-captions.${extension}`;
 
     document.body.appendChild(a);
@@ -278,7 +307,7 @@ export default function Home() {
                       {viewMode === 'text' ? 'Paste or upload your captions' : 'Edit captions visually'}
                     </CardDescription>
                   </div>
-                  {captionObjects.length > 0 && (
+                  {captionObjects.length > 0 ? (
                     <div className="flex gap-2">
                       <Button
                         variant={viewMode === 'text' ? 'default' : 'outline'}
@@ -294,6 +323,10 @@ export default function Home() {
                       >
                         Visual
                       </Button>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-zinc-500">
+                      💡 Visual editor unlocks after upload
                     </div>
                   )}
                 </div>
@@ -340,9 +373,14 @@ export default function Home() {
           <div className="mt-6 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Button
               onClick={correctCaptions}
-              disabled={isProcessing || !originalCaptions.trim()}
+              disabled={isProcessing || !originalCaptions.trim() || (originalCaptions.trim() && detectFormat(originalCaptions) === 'UNKNOWN')}
               size="lg"
               className="w-full sm:w-auto"
+              title={
+                originalCaptions.trim() && detectFormat(originalCaptions) === 'UNKNOWN'
+                  ? 'Invalid caption format. Please upload a valid SRT or VTT file.'
+                  : ''
+              }
             >
               {isProcessing ? 'Correcting...' : 'Correct Captions'}
             </Button>
@@ -358,10 +396,22 @@ export default function Home() {
             </Button>
           </div>
 
-          {/* Error Message */}
+          {/* Error Messages */}
           {error && (
             <div className="mt-4 rounded-lg bg-red-50 p-4 text-center text-red-800 dark:bg-red-900/20 dark:text-red-400">
               {error}
+            </div>
+          )}
+          {ffmpegLoadError && (
+            <div className="mt-4 rounded-lg bg-red-50 p-4 text-center text-red-800 dark:bg-red-900/20 dark:text-red-400">
+              <strong>Video Processing Unavailable:</strong> {ffmpegLoadError}
+              <div className="mt-2 text-sm">You can still upload caption files (.srt, .vtt) directly.</div>
+            </div>
+          )}
+          {originalCaptions.trim() && detectFormat(originalCaptions) === 'UNKNOWN' && (
+            <div className="mt-4 rounded-lg bg-yellow-50 p-4 text-center text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+              <strong>Invalid Caption Format:</strong> The text you entered doesn't appear to be a valid SRT or VTT caption file.
+              <div className="mt-2 text-sm">Please upload a properly formatted caption file or paste valid SRT/VTT text.</div>
             </div>
           )}
 
