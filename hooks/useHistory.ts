@@ -69,16 +69,13 @@ export function useHistory<T>(initialState: T): UseHistoryReturn<T> {
 
     isUndoRedoRef.current = true;
 
-    setPast((currentPast) => {
-      const newPast = [...currentPast];
-      const newPresent = newPast.pop()!;
+    const newPast = [...past];
+    const newPresent = newPast.pop()!;
 
-      setFuture((currentFuture) => [present, ...currentFuture]);
-      setPresent(newPresent);
-
-      return newPast;
-    });
-  }, [past.length, present]);
+    setPast(newPast);
+    setFuture((currentFuture) => [present, ...currentFuture]);
+    setPresent(newPresent);
+  }, [past, present]);
 
   // Redo: move current state to past, restore from future
   const redo = useCallback(() => {
@@ -86,16 +83,13 @@ export function useHistory<T>(initialState: T): UseHistoryReturn<T> {
 
     isUndoRedoRef.current = true;
 
-    setFuture((currentFuture) => {
-      const newFuture = [...currentFuture];
-      const newPresent = newFuture.shift()!;
+    const newFuture = [...future];
+    const newPresent = newFuture.shift()!;
 
-      setPast((currentPast) => [...currentPast, present]);
-      setPresent(newPresent);
-
-      return newFuture;
-    });
-  }, [future.length, present]);
+    setFuture(newFuture);
+    setPast((currentPast) => [...currentPast, present]);
+    setPresent(newPresent);
+  }, [future, present]);
 
   // Clear all history
   const clear = useCallback(() => {
