@@ -333,7 +333,7 @@ export default function Home() {
           </Card>
 
           {/* Video Player with Caption Sync */}
-          {videoBlobUrl && captionObjects.length > 0 && (
+          {videoBlobUrl && (
             <div className="mb-6">
               <VideoPlayer
                 ref={videoPlayerRef}

@@ -154,9 +154,22 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
               <span>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
-              {activeCaptionIndex !== null && (
-                <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                  Caption {activeCaptionIndex + 1} of {captions.length}
+              {captions.length > 0 && (
+                <>
+                  {activeCaptionIndex !== null ? (
+                    <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                      Caption {activeCaptionIndex + 1} of {captions.length}
+                    </span>
+                  ) : (
+                    <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-1 rounded">
+                      {captions.length} {captions.length === 1 ? 'caption' : 'captions'}
+                    </span>
+                  )}
+                </>
+              )}
+              {captions.length === 0 && (
+                <span className="text-xs bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400 px-2 py-1 rounded">
+                  No captions loaded
                 </span>
               )}
             </div>
