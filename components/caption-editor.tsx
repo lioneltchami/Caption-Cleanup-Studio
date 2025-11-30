@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, AlertCircle, CheckCircle2, FileText, Copy, Check } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle2, FileText, Copy, Check, Undo2, Redo2 } from 'lucide-react';
 import { CaptionCard } from './caption-card';
 import type { Caption } from '@/lib/caption-utils';
 import {
@@ -32,9 +32,26 @@ export interface CaptionEditorProps {
   currentVideoTime?: number;
   /** Callback when user clicks a caption (for seeking video) */
   onCaptionClick?: (caption: Caption) => void;
+  /** Undo function (optional) */
+  onUndo?: () => void;
+  /** Redo function (optional) */
+  onRedo?: () => void;
+  /** Whether undo is available */
+  canUndo?: boolean;
+  /** Whether redo is available */
+  canRedo?: boolean;
 }
 
-export function CaptionEditor({ captions, onCaptionsChange, currentVideoTime, onCaptionClick }: CaptionEditorProps) {
+export function CaptionEditor({
+  captions,
+  onCaptionsChange,
+  currentVideoTime,
+  onCaptionClick,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
+}: CaptionEditorProps) {
   const [activeCaptionId, setActiveCaptionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -109,6 +126,31 @@ export function CaptionEditor({ captions, onCaptionsChange, currentVideoTime, on
               <CardDescription>Edit individual captions and timing</CardDescription>
             </div>
             <div className="flex gap-2">
+              {/* Undo/Redo controls */}
+              {onUndo && onRedo && (
+                <>
+                  <Button
+                    onClick={onUndo}
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1"
+                    disabled={!canUndo}
+                    title="Undo (Ctrl+Z)"
+                  >
+                    <Undo2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={onRedo}
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1"
+                    disabled={!canRedo}
+                    title="Redo (Ctrl+Y)"
+                  >
+                    <Redo2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
               <Button
                 onClick={() => handleCopy('SRT')}
                 size="sm"

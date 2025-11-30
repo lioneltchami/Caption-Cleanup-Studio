@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFFmpeg } from './hooks/useFFmpeg';
 import { CaptionEditor } from '@/components/caption-editor';
 import { VideoPlayer, type VideoPlayerRef } from '@/components/video-player';
+import { useHistory } from '@/hooks/useHistory';
 import {
   parseCaptions,
   serializeCaptions,
@@ -22,8 +23,15 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState('');
   const [error, setError] = useState('');
 
-  // Visual editor state
-  const [captionObjects, setCaptionObjects] = useState<Caption[]>([]);
+  // Visual editor state with undo/redo
+  const {
+    state: captionObjects,
+    setState: setCaptionObjects,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useHistory<Caption[]>([]);
   const [viewMode, setViewMode] = useState<'text' | 'visual'>('text');
   const [captionFormat, setCaptionFormat] = useState<'SRT' | 'VTT'>('SRT');
   const [isUpdatingFromVisual, setIsUpdatingFromVisual] = useState(false);
@@ -35,6 +43,30 @@ export default function Home() {
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
 
   const { extractCaptionsFromVideo, extractAudioFromVideo, ffmpegLoadError } = useFFmpeg();
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z or Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) {
+          undo();
+        }
+      }
+      // Ctrl+Y or Cmd+Shift+Z for redo
+      if (((e.ctrlKey || e.metaKey) && e.key === 'y') ||
+          ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z')) {
+        e.preventDefault();
+        if (canRedo) {
+          redo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, undo, redo]);
 
   // Parse captions when originalCaptions changes (but NOT when updating from visual editor)
   useEffect(() => {
@@ -395,6 +427,10 @@ export default function Home() {
                       onCaptionsChange={handleCaptionObjectsChange}
                       currentVideoTime={currentVideoTime}
                       onCaptionClick={handleCaptionClick}
+                      onUndo={undo}
+                      onRedo={redo}
+                      canUndo={canUndo}
+                      canRedo={canRedo}
                     />
                   </div>
                 )}
