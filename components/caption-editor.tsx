@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle2, FileText, Copy, Check } from 'lucide-react';
 import { CaptionCard } from './caption-card';
 import type { Caption } from '@/lib/caption-utils';
 import {
@@ -20,6 +20,7 @@ import {
   validateAllCaptions,
   calculateStats,
   formatDuration,
+  serializeCaptions,
 } from '@/lib/caption-utils';
 
 export interface CaptionEditorProps {
@@ -35,11 +36,24 @@ export interface CaptionEditorProps {
 
 export function CaptionEditor({ captions, onCaptionsChange, currentVideoTime, onCaptionClick }: CaptionEditorProps) {
   const [activeCaptionId, setActiveCaptionId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Find caption that's active based on video time
   const videoCaptionId = currentVideoTime !== undefined
     ? captions.find(cap => currentVideoTime >= cap.start && currentVideoTime < cap.end)?.id || null
     : null;
+
+  // Handle copy to clipboard
+  const handleCopy = async (format: 'SRT' | 'VTT' = 'SRT') => {
+    try {
+      const captionText = serializeCaptions(captions, format);
+      await navigator.clipboard.writeText(captionText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
+  };
 
   // Handle caption update
   const handleUpdate = (id: string, updates: Partial<Omit<Caption, 'id'>>) => {
@@ -94,15 +108,36 @@ export function CaptionEditor({ captions, onCaptionsChange, currentVideoTime, on
               </CardTitle>
               <CardDescription>Edit individual captions and timing</CardDescription>
             </div>
-            <Button onClick={handleAddCaption} size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Caption
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleCopy('SRT')}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                disabled={captions.length === 0}
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy as SRT
+                  </>
+                )}
+              </Button>
+              <Button onClick={handleAddCaption} size="sm" className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Caption
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {/* Statistics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <div>
               <div className="text-2xl font-bold">{stats.totalCaptions}</div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400">Total Captions</div>
@@ -112,14 +147,33 @@ export function CaptionEditor({ captions, onCaptionsChange, currentVideoTime, on
               <div className="text-xs text-zinc-600 dark:text-zinc-400">Total Duration</div>
             </div>
             <div>
-              <div className="text-2xl font-bold">{stats.averageCPS.toFixed(1)}</div>
+              <div className={`text-2xl font-bold ${
+                stats.averageCPS > 21 ? 'text-red-600 dark:text-red-400' :
+                stats.averageCPS > 17 ? 'text-yellow-600 dark:text-yellow-400' :
+                stats.averageCPS >= 12 ? 'text-green-600 dark:text-green-400' :
+                'text-zinc-900 dark:text-zinc-100'
+              }`}>{stats.averageCPS.toFixed(1)}</div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400">Avg CPS</div>
             </div>
             <div>
-              <div className="text-2xl font-bold">
-                {stats.longestCaption > 0 ? stats.longestCaption : '-'}
+              <div className="text-2xl font-bold">{formatDuration(stats.averageDuration)}</div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">Avg Duration</div>
+            </div>
+            <div>
+              <div className={`text-2xl font-bold ${
+                validation.errors.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-zinc-100'
+              }`}>
+                {validation.errors.length}
               </div>
-              <div className="text-xs text-zinc-600 dark:text-zinc-400">Longest (chars)</div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">Errors</div>
+            </div>
+            <div>
+              <div className={`text-2xl font-bold ${
+                validation.warnings.length > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-zinc-900 dark:text-zinc-100'
+              }`}>
+                {validation.warnings.length}
+              </div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">Warnings</div>
             </div>
           </div>
 
