@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useFFmpeg } from './hooks/useFFmpeg';
+import { CaptionEditor } from '@/components/caption-editor';
+import {
+  parseCaptions,
+  serializeCaptions,
+  detectFormat,
+  type Caption,
+} from '@/lib/caption-utils';
 
 export default function Home() {
   const [originalCaptions, setOriginalCaptions] = useState('');
@@ -14,7 +21,52 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState('');
   const [error, setError] = useState('');
 
+  // Visual editor state
+  const [captionObjects, setCaptionObjects] = useState<Caption[]>([]);
+  const [viewMode, setViewMode] = useState<'text' | 'visual'>('text');
+  const [captionFormat, setCaptionFormat] = useState<'SRT' | 'VTT'>('SRT');
+  const [isUpdatingFromVisual, setIsUpdatingFromVisual] = useState(false);
+
   const { extractCaptionsFromVideo, extractAudioFromVideo, ffmpegLoadError } = useFFmpeg();
+
+  // Parse captions when originalCaptions changes (but NOT when updating from visual editor)
+  useEffect(() => {
+    if (isUpdatingFromVisual) {
+      setIsUpdatingFromVisual(false);
+      return;
+    }
+
+    if (originalCaptions.trim()) {
+      try {
+        const format = detectFormat(originalCaptions);
+        console.log('🎬 Detected format:', format);
+        if (format !== 'UNKNOWN') {
+          setCaptionFormat(format);
+          const parsed = parseCaptions(originalCaptions);
+          console.log('✅ Parsed captions:', parsed.length, 'captions');
+          setCaptionObjects(parsed);
+        }
+      } catch (err) {
+        console.error('Failed to parse captions:', err);
+        // Keep text view if parsing fails
+      }
+    } else {
+      setCaptionObjects([]);
+    }
+  }, [originalCaptions, isUpdatingFromVisual]);
+
+  // Handle caption objects update from visual editor
+  const handleCaptionObjectsChange = (updatedCaptions: Caption[]) => {
+    setCaptionObjects(updatedCaptions);
+    // Sync back to text
+    try {
+      const serialized = serializeCaptions(updatedCaptions, captionFormat);
+      setIsUpdatingFromVisual(true); // Prevent re-parsing
+      setOriginalCaptions(serialized);
+    } catch (err) {
+      console.error('Failed to serialize captions:', err);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -219,16 +271,49 @@ export default function Home() {
             {/* Original Captions */}
             <Card>
               <CardHeader>
-                <CardTitle>Original Captions</CardTitle>
-                <CardDescription>Paste or upload your captions</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Original Captions</CardTitle>
+                    <CardDescription>
+                      {viewMode === 'text' ? 'Paste or upload your captions' : 'Edit captions visually'}
+                    </CardDescription>
+                  </div>
+                  {captionObjects.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant={viewMode === 'text' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setViewMode('text')}
+                      >
+                        Text
+                      </Button>
+                      <Button
+                        variant={viewMode === 'visual' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setViewMode('visual')}
+                      >
+                        Visual
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <Textarea
-                  value={originalCaptions}
-                  onChange={(e) => setOriginalCaptions(e.target.value)}
-                  placeholder="Paste your SRT or VTT captions here...&#10;&#10;1&#10;00:00:01,000 --> 00:00:03,000&#10;That was a pog play!"
-                  className="min-h-[400px] font-mono text-sm"
-                />
+                {viewMode === 'text' ? (
+                  <Textarea
+                    value={originalCaptions}
+                    onChange={(e) => setOriginalCaptions(e.target.value)}
+                    placeholder="Paste your SRT or VTT captions here...&#10;&#10;1&#10;00:00:01,000 --> 00:00:03,000&#10;That was a pog play!"
+                    className="min-h-[400px] font-mono text-sm"
+                  />
+                ) : (
+                  <div className="max-h-[600px] overflow-y-auto pr-2">
+                    <CaptionEditor
+                      captions={captionObjects}
+                      onCaptionsChange={handleCaptionObjectsChange}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
